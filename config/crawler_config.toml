@@ -1,0 +1,10 @@
+url = 'https://news.naver.com/main/list.nhn'
+dates = 22
+
+[parameters]
+mode = 'LPOD'
+mid = 'sec'
+oid = '056'
+listType = 'title'
+date = 2020-04-22
+page = 0
