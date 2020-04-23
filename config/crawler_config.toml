@@ -1,10 +1,10 @@
 url = 'https://news.naver.com/main/list.nhn'
-dates = 22
+date = 2020-04-23
+dates = 3
 
 [parameters]
 mode = 'LPOD'
 mid = 'sec'
 oid = '056'
 listType = 'title'
-date = 2020-04-22
 page = 0
