@@ -7,6 +7,7 @@ from random import uniform
 from time import sleep
 from bs4 import BeautifulSoup
 from bs4 import element
+import re
 
 
 def get_article_urls(url: str, params: dict, cnt: int = 0) -> list:
@@ -65,6 +66,12 @@ def get_article(article_url: str) -> dict:
     return article
 
 
+def get_article_id(article_url: str) -> int:
+    regex = re.compile('(?<=aid=)\d+')
+    article_id = regex.findall(article_url)
+    return article_id[0]
+
+
 def main():
     parser = argparse.ArgumentParser()
 
@@ -95,10 +102,6 @@ def main():
             params['page'] += 1
             url_list = get_article_urls(url, params)
 
-            # print('GET date:', params['date'], 'page:', params['page'])
-            # print(url)
-            # print(url_list)
-
             try:
                 if url_list[0] in article_url_list:
                     break
@@ -112,6 +115,7 @@ def main():
 
         for article_url in article_url_list:
             article = get_article(article_url)
+            article['id'] = get_article_id(article_url)
 
         print(article)
 
