@@ -67,9 +67,15 @@ def get_article(article_url: str) -> dict:
 
 
 def get_article_id(article_url: str) -> int:
-    regex = re.compile('(?<=aid=)\d+')
+    regex = re.compile("(?<=aid=)\d+")
     article_id = regex.findall(article_url)
     return article_id[0]
+
+
+def get_reporter_name(context: str) -> str:
+    regex = re.compile("[가-횧]+(?= 기자)")
+    reporter_name = regex.findall(context)
+    return reporter_name[-1] or None
 
 
 def main():
@@ -116,6 +122,8 @@ def main():
         for article_url in article_url_list:
             article = get_article(article_url)
             article['id'] = get_article_id(article_url)
+            article['reporter_name'] = get_reporter_name(article['context'])
+            article['reporter_email']
 
         print(article)
 
