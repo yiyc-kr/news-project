@@ -75,7 +75,19 @@ def get_article_id(article_url: str) -> int:
 def get_reporter_name(context: str) -> str:
     regex = re.compile("[가-횧]+(?= 기자)")
     reporter_name = regex.findall(context)
-    return reporter_name[-1] or None
+    try:
+        return reporter_name[-1]
+    except Exception:
+        return None
+
+
+def get_reporter_id(context: str) -> str:
+    regex = re.compile("\w+(?=@kbs.co.kr)")
+    reporter_email = regex.findall(context)
+    try:
+        return reporter_email[-1]
+    except Exception:
+        return None
 
 
 def main():
@@ -123,9 +135,8 @@ def main():
             article = get_article(article_url)
             article['id'] = get_article_id(article_url)
             article['reporter_name'] = get_reporter_name(article['context'])
-            article['reporter_email']
-
-        print(article)
+            article['reporter_id'] = get_reporter_id(article['context'])
+            print(article)
 
 
 if __name__ == "__main__":
