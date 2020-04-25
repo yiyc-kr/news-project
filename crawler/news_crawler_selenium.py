@@ -10,6 +10,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException
 from selenium.common.exceptions import ElementNotInteractableException
+import requests
+import shutil
+import os
 
 
 def get_article_urls(url: str, params: dict, driver, cnt: int = 0) -> list:
@@ -91,7 +94,7 @@ def get_comments(driver) -> list:
     return comments
 
 
-def get_article(article_url: str, driver) -> dict:
+def get_article(article_url: str, article_id: str, image_path: str, driver) -> dict:
     driver.get(article_url)
     sleep(uniform(1.5, 3.0))
 
@@ -145,6 +148,18 @@ def get_article(article_url: str, driver) -> dict:
     for prop in article:
         if hasattr(article[prop], 'text'):
             article[prop] = article[prop].text
+
+    article['img_path'] = []
+    try:
+        for i, img_src in enumerate(driver.find_elements_by_css_selector("span.end_photo_org > img")):
+            img_res = requests.get(img_src.get_attribute('src'), stream=True)
+            img_path = os.path.join(image_path, article_id+'_'+str(i)+'.jpg')
+            with open(img_path, 'wb') as out_file:
+                shutil.copyfileobj(img_res.raw, out_file)
+            article['img_path'].append(img_path)
+    except Exception as e:
+        print(e)
+        pass
 
     article['comment_cnt'] = int(article['comment_cnt'].encode('euc-kr'))
 
@@ -210,7 +225,7 @@ def main():
     date = args.date
     dates = args.dates
     params = args.parameters
-    image_path = args.image_path
+    image_path = os.path.abspath(args.image_path)
 
     driver = webdriver.Chrome('./chromedriver')
     driver.implicitly_wait(3)
@@ -236,8 +251,9 @@ def main():
         print(params['date'], 'get', len(article_url_list), 'articles')
 
         for article_url in article_url_list:
-            article = get_article(article_url, driver)
-            article['id'] = get_article_id(article_url)
+            article_id = get_article_id(article_url)
+            article = get_article(article_url, article_id, image_path, driver)
+            article['id'] = article_id
             article['reporter_name'] = get_reporter_name(article['content'])
             article['reporter_id'] = get_reporter_id(article['content'])
             print(article)
