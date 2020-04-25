@@ -13,6 +13,7 @@ from selenium.common.exceptions import ElementNotInteractableException
 import requests
 import shutil
 import os
+import pymysql
 
 
 def get_article_urls(url: str, params: dict, driver, cnt: int = 0) -> list:
@@ -68,7 +69,7 @@ def get_comments(driver) -> list:
     for i in range(len(comments_contents)):
         comment = dict()
         parsed_comment = comments_contents[i].text.split('\n')
-        comment['id'] = parsed_comment[0]
+        comment['user_id'] = parsed_comment[0]
         if len(parsed_comment) == 11:
             comment['content'] = parsed_comment[3]
             comment['time'] = parsed_comment[4]
@@ -205,6 +206,43 @@ def get_reporter_id(context: str) -> str:
         return None
 
 
+def check_db(db, article_id) -> int:
+    with db.cursor() as cursor:
+        cursor.execute(f'select count(*) from articles where id = {article_id}')
+        result = cursor.fetchone()
+    return result[0]
+
+
+def insert_db(db, article: dict):
+    article['category'] = ' '.join(article['category'])
+    comments = article.pop('comments', None)
+    img_paths = article.pop('img_path', None)
+
+    cols = ', '.join(article)
+    placeholders = ', '.join(['%s'] * len(article))
+
+    with db.cursor() as cursor:
+        cursor.execute(f"insert into articles ({cols}) values ({placeholders})", tuple(article.values()))
+        db.commit()
+
+    if comments:
+        for comment in comments:
+            comment['article_id'] = article['id']
+            cols = ', '.join(comment)
+            placeholders = ', '.join(['%s'] * 6)
+
+            with db.cursor() as cursor:
+                cursor.execute(f"insert into comments ({cols}) values ({placeholders})", tuple(comment.values()))
+                db.commit()
+
+    if img_paths:
+        for img_path in img_paths:
+            with db.cursor() as cursor:
+                cursor.execute(f"insert into images (article_id, img_path) "
+                               f"values (\'{article['id']}\', \'{img_path}\')")
+                db.commit()
+
+
 def main():
     parser = argparse.ArgumentParser()
 
@@ -230,6 +268,8 @@ def main():
     driver = webdriver.Chrome('./chromedriver')
     driver.implicitly_wait(3)
 
+    db = pymysql.connect(host='localhost', port=3306, user='root', passwd='ktnet123', db='news', charset='utf8')
+
     for days_ in range(dates):
         params['date'] = (date - datetime.timedelta(days=days_)).strftime("%Y%m%d")
         params['page'] = 0
@@ -252,11 +292,12 @@ def main():
 
         for article_url in article_url_list:
             article_id = get_article_id(article_url)
-            article = get_article(article_url, article_id, image_path, driver)
-            article['id'] = article_id
-            article['reporter_name'] = get_reporter_name(article['content'])
-            article['reporter_id'] = get_reporter_id(article['content'])
-            print(article)
+            if not check_db(db, article_id):
+                article = get_article(article_url, article_id, image_path, driver)
+                article['id'] = article_id
+                article['reporter_name'] = get_reporter_name(article['content'])
+                article['reporter_id'] = get_reporter_id(article['content'])
+                insert_db(db, article)
 
 
 if __name__ == "__main__":
