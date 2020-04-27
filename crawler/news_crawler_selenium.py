@@ -14,6 +14,7 @@ import requests
 import shutil
 import os
 import pymysql
+from tqdm import tqdm
 
 
 def get_article_urls(url: str, params: dict, driver, cnt: int = 0) -> list:
@@ -318,7 +319,7 @@ def main():
     db = pymysql.connect(host=db_info['host'], port=db_info['port'], user=db_info['user'],
                          passwd=db_info['password'], db=db_info['db'], charset='utf8')
 
-    for days_ in range(dates):
+    for days_ in tqdm(range(dates), desc="DAYS"):
         params['date'] = (date - datetime.timedelta(days=days_)).strftime("%Y%m%d")
         params['page'] = 0
         article_url_list = []
@@ -336,9 +337,7 @@ def main():
                 print('params:', params)
                 print(e)
 
-        print(params['date'], 'get', len(article_url_list), 'articles')
-
-        for article_url in article_url_list:
+        for article_url in tqdm(article_url_list, desc=f"Collecting Articles in {params['date']}", leave=False):
             article_id = get_article_id(article_url)
             if not check_db(db, article_id):
                 article = get_article(article_url, article_id, image_path, driver)
