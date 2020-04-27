@@ -34,9 +34,14 @@ def get_article_urls(url: str, params: dict, driver, cnt: int = 0) -> list:
     return article_url_list
 
 
-def get_comments(driver) -> list:
-    driver.find_element_by_css_selector("#cbox_module > div > div.u_cbox_view_comment > a > "
+def get_comments(driver, article_id) -> list:
+    try:
+        driver.find_element_by_css_selector("#cbox_module > div > div.u_cbox_view_comment > a > "
                                         "span.u_cbox_in_view_comment").click()
+    except NoSuchElementException as e:
+        driver.find_element_by_css_selector("#cbox_module > div > div > "
+                                            "a.simplecmt_link").click()
+
     try:
         element = WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.CLASS_NAME, "u_cbox_list"))
@@ -54,14 +59,25 @@ def get_comments(driver) -> list:
             break
 
     driver.execute_script("window.scrollTo(0, 0)")
-
+    """
     reply_comments = driver.find_elements_by_css_selector("#cbox_module > div > div.u_cbox_content_wrap > ul "
                                                           "> li.u_cbox_comment > div.u_cbox_comment_box > div "
                                                           "> div.u_cbox_tool > a > strong")
+    """
+
+    reply_comments = driver.find_elements_by_css_selector("#cbox_module > div > div.u_cbox_content_wrap > ul "
+                                                          "> li.u_cbox_comment > div.u_cbox_comment_box > div "
+                                                          "> div.u_cbox_tool > a > span.u_cbox_reply_cnt")
 
     for i in reply_comments:
-        i.click()
-        sleep(uniform(0.5, 1))
+        if i.text == "0":
+            continue
+        try:
+            i.click()
+            sleep(uniform(0.5, 1))
+        except Exception as e:
+            print(article_id, e)
+            pass
 
     comments_contents = driver.find_elements_by_class_name("u_cbox_area")
 
@@ -101,7 +117,12 @@ def get_article(article_url: str, article_id: str, image_path: str, driver) -> d
 
     article = dict()
 
-    article['title'] = driver.find_element_by_css_selector("#articleTitle")
+    try:
+        article['title'] = driver.find_element_by_css_selector("#articleTitle")
+    except NoSuchElementException:
+        return article
+        # driver.find_elements_by_class_name("title")
+
     article['upload_time'] = driver.find_element_by_css_selector("#main_content > div.article_header "
                                                                  "> div.article_info > div > span:nth-child(1)")
 
@@ -162,22 +183,47 @@ def get_article(article_url: str, article_id: str, image_path: str, driver) -> d
         print(e)
         pass
 
-    article['comment_cnt'] = int(article['comment_cnt'].encode('euc-kr'))
+    try:
+        article['comment_cnt'] = int(article['comment_cnt'].encode('euc-kr'))
+    except ValueError:
+        article['comment_cnt'] = int(article['comment_cnt'].replace(',', ''))
 
     if article['recommendation_cnt'].encode('euc-kr') == b'':
         article['recommendation_cnt'] = 0
     else:
         article['recommendation_cnt'] = int(article['recommendation_cnt'].encode('euc-kr'))
+    try:
+        article['likeit_cnt'] = int(article['likeit_cnt'])
+    except ValueError:
+        article['likeit_cnt'] = int(article['likeit_cnt'].replace(',', ''))
 
-    article['likeit_cnt'] = int(article['likeit_cnt'])
-    article['good'] = int(article['good'])
-    article['warm'] = int(article['warm'])
-    article['sad'] = int(article['sad'])
-    article['angry'] = int(article['angry'])
-    article['want'] = int(article['want'])
+    try:
+        article['good'] = int(article['good'])
+    except ValueError:
+        article['good'] = int(article['good'].replace(',', ''))
+
+    try:
+        article['warm'] = int(article['warm'])
+    except ValueError:
+        article['warm'] = int(article['warm'].replace(',', ''))
+
+    try:
+        article['sad'] = int(article['sad'])
+    except ValueError:
+        article['sad'] = int(article['sad'].replace(',', ''))
+
+    try:
+        article['angry'] = int(article['angry'])
+    except ValueError:
+        article['angry'] = int(article['angry'].replace(',', ''))
+
+    try:
+        article['want'] = int(article['want'])
+    except ValueError:
+        article['want'] = int(article['want'].replace(',', ''))
 
     if article['comment_cnt'] > 0:
-        article['comments'] = get_comments(driver)
+        article['comments'] = get_comments(driver, article_id)
 
     return article
 
@@ -263,12 +309,14 @@ def main():
     date = args.date
     dates = args.dates
     params = args.parameters
+    db_info = args.db
     image_path = os.path.abspath(args.image_path)
 
     driver = webdriver.Chrome('./chromedriver')
     driver.implicitly_wait(3)
 
-    db = pymysql.connect(host='localhost', port=3306, user='root', passwd='ktnet123', db='news', charset='utf8')
+    db = pymysql.connect(host=db_info['host'], port=db_info['port'], user=db_info['user'],
+                         passwd=db_info['password'], db=db_info['db'], charset='utf8')
 
     for days_ in range(dates):
         params['date'] = (date - datetime.timedelta(days=days_)).strftime("%Y%m%d")
@@ -294,6 +342,8 @@ def main():
             article_id = get_article_id(article_url)
             if not check_db(db, article_id):
                 article = get_article(article_url, article_id, image_path, driver)
+                if not article:
+                    continue
                 article['id'] = article_id
                 article['reporter_name'] = get_reporter_name(article['content'])
                 article['reporter_id'] = get_reporter_id(article['content'])
