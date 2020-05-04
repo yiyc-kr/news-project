@@ -17,6 +17,7 @@ import pymysql
 from tqdm import tqdm
 
 
+# get articles' url during a day before crawling article
 def get_article_urls(url: str, params: dict, driver, cnt: int = 0) -> list:
     get_url = url + '?'
     for param in params:
@@ -253,6 +254,7 @@ def get_reporter_id(context: str) -> str:
         return None
 
 
+# check db before crawl article
 def check_db(db, article_id) -> int:
     with db.cursor() as cursor:
         cursor.execute(f'select count(*) from articles where id = {article_id}')
@@ -260,6 +262,7 @@ def check_db(db, article_id) -> int:
     return result[0]
 
 
+# insert article and comment data to db
 def insert_db(db, article: dict):
     article['category'] = ' '.join(article['category'])
     comments = article.pop('comments', None)
